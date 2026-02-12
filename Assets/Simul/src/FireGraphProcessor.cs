@@ -118,14 +118,14 @@ public static class FireGraphProcessor
         var b = GetOrAddNode(p2, nodes, spatialMap, combustible, targetLen);
         var c = GetOrAddNode(p3, nodes, spatialMap, combustible, targetLen);
 
-        var profile = MaterialLibrary.GetMaterialProfile(combustible.Material);
+        var profile = MaterialLibrary.GetProfile(combustible.Material);
 
-        // Добавляем связи. 
+        // Добавляем связи.
         // GetOrAddNode вернет существующие индексы для смежных треугольников,
         // поэтому сетка будет автоматически "сшита".
-        Link(nodes, a, b, profile.burnRate);
-        Link(nodes, b, c, profile.burnRate);
-        Link(nodes, c, a, profile.burnRate);
+        Link(nodes, a, b, profile.heatTransfer);
+        Link(nodes, b, c, profile.heatTransfer);
+        Link(nodes, c, a, profile.heatTransfer);
     }
 
     private static int GetOrAddNode(Vector3 pos, List<FireNode> nodes, Dictionary<Vector3Int, int> map,
@@ -148,12 +148,12 @@ public static class FireGraphProcessor
         return nodes.Count - 1;
     }
 
-    private static void Link(List<FireNode> nodes, int a, int b, float burnRate)
+    private static void Link(List<FireNode> nodes, int a, int b, float heatTransfer)
     {
         if (a == b) return;
         var d = Vector3.Distance(nodes[a].position, nodes[b].position);
         // Исправлено: проводимость = скорость / дистанция
-        var conductivity = burnRate / Mathf.Max(0.01f, d);
+        var conductivity = heatTransfer / Mathf.Max(0.01f, d);
 
         // Добавляем связь А -> B
         if (!nodes[a].neighbors.Exists(e => e.targetIndex == b))
@@ -164,7 +164,7 @@ public static class FireGraphProcessor
             nodes[b].neighbors.Add(new FireEdge { targetIndex = a, conductivity = conductivity });
     }
 
-    private static List<FireNode> RebuildGraphWithoutNodes(List<FireNode> nodes, bool[] toRemove, float burnSpeed)
+    private static List<FireNode> RebuildGraphWithoutNodes(List<FireNode> nodes, bool[] toRemove, float heatTransfer)
     {
         var newNodes = new List<FireNode>();
         var oldToNewMap = new int[nodes.Count];
@@ -200,17 +200,17 @@ public static class FireGraphProcessor
                 if (!toRemove[neighborIdx])
                 {
                     var newIdxB = oldToNewMap[neighborIdx];
-                    Link(newNodes, newIdxA, newIdxB, burnSpeed);
+                    Link(newNodes, newIdxA, newIdxB, heatTransfer);
                 }
                 else
                 {
-                    // СЛОЖНЫЙ СЛУЧАЙ: Сосед удален. 
+                    // СЛОЖНЫЙ СЛУЧАЙ: Сосед удален.
                     // Нужно найти ближайшего "выжившего" за этим удаленным узлом.
                     var survivorIdx = FindNextSurvivor(neighborIdx, i, nodes, toRemove);
                     if (survivorIdx != -1)
                     {
                         var newIdxB = oldToNewMap[survivorIdx];
-                        Link(newNodes, newIdxA, newIdxB, burnSpeed);
+                        Link(newNodes, newIdxA, newIdxB, heatTransfer);
                     }
                 }
             }
@@ -240,7 +240,7 @@ public static class FireGraphProcessor
     private static List<FireNode> ClusterNodesByProximity(List<FireNode> nodes, float radius, Combustible combustible)
     {
         if (nodes.Count == 0 || radius <= 0f) return nodes;
-        var profile = MaterialLibrary.GetMaterialProfile(combustible.Material);
+        var profile = MaterialLibrary.GetProfile(combustible.Material);
         var merged = new bool[nodes.Count];
         var result = new List<FireNode>();
 
@@ -276,7 +276,7 @@ public static class FireGraphProcessor
                 if (b < 0 || a == b) continue;
                 var d = Vector3.Distance(result[a].position, result[b].position);
                 var key = (Mathf.Min(a, b), Mathf.Max(a, b));
-                if (!edges.ContainsKey(key) || (d / profile.burnRate) < edges[key]) edges[key] = d / profile.burnRate;
+                if (!edges.ContainsKey(key) || (d / profile.heatTransfer) < edges[key]) edges[key] = d / profile.heatTransfer;
             }
         }
 
@@ -300,11 +300,11 @@ public static class FireGraphProcessor
     private static List<FireNode> RemoveLinearNodes(List<FireNode> nodes, Combustible combustible)
     {
         var toRemove = new bool[nodes.Count];
-        var profile = MaterialLibrary.GetMaterialProfile(combustible.Material);
+        var profile = MaterialLibrary.GetProfile(combustible.Material);
         for (int i = 0; i < nodes.Count; i++)
             if (nodes[i].neighbors.Count == 2)
                 toRemove[i] = true;
-        return RebuildGraphWithoutNodes(nodes, toRemove, profile.burnRate);
+        return RebuildGraphWithoutNodes(nodes, toRemove, profile.heatTransfer);
     }
 
     private static List<FireNode> RemoveDanglingNodes(List<FireNode> nodes)

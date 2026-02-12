@@ -39,14 +39,14 @@ public class FireGraph : MonoBehaviour
         }
 
         // 3. Горящие узлы (для рантайма)
-        foreach (var node in _nodes)
+        /*foreach (var node in _nodes)
         {
             if (node.burnProgress > 0.1f)
             {
                 Gizmos.color = Color.red;
                 Gizmos.DrawSphere(node.position, 0.08f);
             }
-        }
+        }*/
     }
 #endif
 }

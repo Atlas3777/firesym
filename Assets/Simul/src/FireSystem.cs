@@ -6,7 +6,7 @@ using UnityEngine;
 public class FireSystem : MonoBehaviour
 {
     public ParticleSystem fireParticleSystem;
-    public float thermalConductivity = 0.67f; // Насколько быстро тепло уходит соседям
+    public float thermalConductivity = 0.67f; // Сколько разницы отдаём
     public float coolingSpeed = 0.003f; // насколько уменьшаяется t за тик
     public float maxTemperature = 500f; // Температура "белого каления"
     public float nodeScale = 0.1f;
@@ -60,7 +60,6 @@ public class FireSystem : MonoBehaviour
             _particles[i].startSize = nodeScale;
             _particles[i].startColor = Color.gray;
 
-            // ВАЖНО: Без этого частицы мгновенно исчезают!
             _particles[i].remainingLifetime = 10000f;
             _particles[i].startLifetime = 10000f;
         }
@@ -147,25 +146,29 @@ public class FireSystem : MonoBehaviour
             var start = _edgeOffsets[i];
             var count = _edgeCounts[i];
             
-            
 
             if (count > 0)
             {
+                // Шаг 1: подсчитать холодных соседей
+                int colderCount = 0;
+                for (var j = 0; j < count; j++)
+                {
+                    if (currentEnergy > _nodes[_edges[start + j].targetIndex].energy)
+                        colderCount++;
+                }
+                colderCount = Mathf.Max(1, colderCount); // избежать деления на ноль
+
+                // Шаг 2: передать с правильной нормализацией
                 for (var j = 0; j < count; j++)
                 {
                     var neighborIdx = _edges[start + j].targetIndex;
                     var neighborEnergy = _nodes[neighborIdx].energy;
-
-                    // Передаем энергию только если мы "горячее" соседа
+    
                     if (currentEnergy > neighborEnergy)
                     {
                         var diff = currentEnergy - neighborEnergy;
-
-                        // Делим на count, чтобы распределить поток между всеми трубками
-                        // Теперь даже если thermalConductivity = 1.0, 
-                        // узел не отдаст больше, чем разница с соседями.
-                        var transfer = (diff * thermalConductivity) / count;
-
+                        var transfer = (diff * thermalConductivity) / colderCount;
+        
                         _energyDelta[i] -= transfer;
                         _energyDelta[neighborIdx] += transfer;
                     }

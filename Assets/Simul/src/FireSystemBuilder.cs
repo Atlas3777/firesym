@@ -53,12 +53,14 @@ public class FireSystemBuilder : MonoBehaviour
                 var globalIndex = globalIndexOffset + i;
 
                 // Внутри цикла сборки в Builder:
-                var profile = MaterialLibrary.GetMaterialProfile(fn.materialType);
+                var profile = MaterialLibrary.GetProfile(fn.materialType);
 
                 SimNode simNode = new SimNode
                 {
                     position = fn.position,
-                    visited = false,
+                    fuel = profile.initialFuel,
+                    ignitionTemp =  profile.ignitionTemp,
+                    calorificValue = profile.calorificValue,
                 };
                 
                 allNodes.Add(simNode);
@@ -69,13 +71,32 @@ public class FireSystemBuilder : MonoBehaviour
                 {
                     foreach (var edge in fn.neighbors) 
                     {
+
                         // Важно: пересчитываем локальный индекс соседа в глобальный
-                        int targetGlobal = globalIndexOffset + edge.targetIndex; //
+                        var targetGlobal = globalIndexOffset + edge.targetIndex; 
+                        
+                        var direction = (sourceNodes[edge.targetIndex].position - fn.position).normalized;
+                        var y = direction.y;
+
+                        float multiplier;
+                        if (y > 0)
+                        {
+                            // Интерполяция от 0.6 до 2.0 для y в диапазоне [0, 1]
+                            multiplier = Mathf.Lerp(0.6f, 2.0f, y);
+                        }
+                        else
+                        {
+                            // Интерполяция от 0.1 до 0.6 для y в диапазоне [-1, 0]
+                            // Используем y + 1, чтобы привести [-1, 0] к [0, 1]
+                            multiplier = Mathf.Lerp(0.1f, 0.6f, y + 1.0f);
+                        }
+
                         
                         nodeEdges.Add(new SimEdge
                         {
                             targetIndex = targetGlobal,
-                            conductivity = 1f
+                            materialConductivity = profile.heatTransfer,
+                            hightConductivity = multiplier
                         });
                     }
                 }
@@ -114,7 +135,8 @@ public class FireSystemBuilder : MonoBehaviour
                 foreach (int neighborIdx in neighborsInCell)
                 {
                     if (i == neighborIdx) continue; // Это мы сами
-
+                    
+                    
                     // Проверка дистанции
                     float d2 = (allNodes[neighborIdx].position - pos).sqrMagnitude;
                     if (d2 > distSq) continue;
@@ -135,12 +157,24 @@ public class FireSystemBuilder : MonoBehaviour
                         // СОЗДАЕМ МОСТ МЕЖДУ ОБЪЕКТАМИ
                         // Чем ближе объекты, тем быстрее передается огонь
                         float dist = Mathf.Sqrt(d2);
-                        float airConductivity = 0.5f / Mathf.Max(0.1f, dist); 
+                        float airConductivity = 0.2f; 
+                        
+                        Vector3 bridgeDir = (allNodes[neighborIdx].position - pos).normalized;
+                        float by = bridgeDir.y;
+                        float bridgeMultiplier = by > 0 ? Mathf.Lerp(0.6f, 2.0f, by) : Mathf.Lerp(0.1f, 0.6f, by + 1.0f);
 
                         tempEdges[i].Add(new SimEdge
                         {
                             targetIndex = neighborIdx,
-                            conductivity = airConductivity
+                            materialConductivity = airConductivity,
+                            hightConductivity = bridgeMultiplier
+                        });
+
+                        tempEdges[i].Add(new SimEdge
+                        {
+                            targetIndex = neighborIdx,
+                            materialConductivity = airConductivity,
+                            hightConductivity = bridgeMultiplier
                         });
                         
                         // Связь должна быть двусторонней? 

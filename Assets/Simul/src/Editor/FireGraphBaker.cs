@@ -4,7 +4,7 @@ using UnityEditor;
 [CustomEditor(typeof(FireGraph))]
 public class FireGraphBakerEditor : Editor
 {
-    private float _targetEdgeLength = 0.24f;
+    private float _targetEdgeLength = 0.32f;
     private bool _enableSimplification = true;
     private float _clusterRadius = 0.067f;
 
@@ -46,7 +46,7 @@ public class FireGraphBakerEditor : Editor
             var graph = go.GetComponent<FireGraph>();
             if (graph)
             {
-                FireGraphProcessor.Bake(graph, 0.24f, true, 0.067f);
+                FireGraphProcessor.Bake(graph, 0.32f, true, 0.067f);
                 EditorUtility.SetDirty(graph);
             }
         }
