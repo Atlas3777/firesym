@@ -68,8 +68,8 @@ public static class FireGraphProcessor
         // мы делим его пополам, чтобы сделать части более "квадратными".
         // Если же он уже "квадратный" (или равносторонний), но просто большой,
         // мы делим его на 4 части ("Triforce"), чтобы равномерно заполнить площадь.
-        
-        bool isStretched = maxEdge > (minEdge * 1.4f); 
+
+        bool isStretched = maxEdge > (minEdge * 1.4f);
 
         if (!isStretched)
         {
@@ -119,8 +119,8 @@ public static class FireGraphProcessor
         var c = GetOrAddNode(p3, nodes, spatialMap, combustible, targetLen);
 
         var profile = MaterialLibrary.GetMaterialProfile(combustible.Material);
-        
-        // Добавляем связи. 
+
+        // Добавляем связи. 
         // GetOrAddNode вернет существующие индексы для смежных треугольников,
         // поэтому сетка будет автоматически "сшита".
         Link(nodes, a, b, profile.burnRate);
@@ -204,7 +204,7 @@ public static class FireGraphProcessor
                 }
                 else
                 {
-                    // СЛОЖНЫЙ СЛУЧАЙ: Сосед удален. 
+                    // СЛОЖНЫЙ СЛУЧАЙ: Сосед удален. 
                     // Нужно найти ближайшего "выжившего" за этим удаленным узлом.
                     var survivorIdx = FindNextSurvivor(neighborIdx, i, nodes, toRemove);
                     if (survivorIdx != -1)

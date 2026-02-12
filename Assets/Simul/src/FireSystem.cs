@@ -54,7 +54,7 @@ public class FireSystem : MonoBehaviour
         // Инициализируем массив частиц один раз
         _particles = new ParticleSystem.Particle[_nodes.Length];
 
-        for (int i = 0; i < _nodes.Length; i++)
+        for (var i = 0; i < _nodes.Length; i++)
         {
             _particles[i].position = _nodes[i].position;
             _particles[i].startSize = nodeScale;
@@ -71,7 +71,7 @@ public class FireSystem : MonoBehaviour
 
 
         // Сразу задаем позиции, так как они в вашей симуляции статичны
-        for (int i = 0; i < _nodes.Length; i++)
+        for (var i = 0; i < _nodes.Length; i++)
         {
             _particles[i].position = _nodes[i].position;
             _particles[i].startSize = nodeScale;
@@ -103,10 +103,10 @@ public class FireSystem : MonoBehaviour
 
     private void UpdateParticles()
     {
-        int count = _nodes.Length;
-        for (int i = 0; i < count; i++)
+        var count = _nodes.Length;
+        for (var i = 0; i < count; i++)
         {
-            float t = Mathf.Clamp01(_nodes[i].energy / maxTemperature);
+            var t = Mathf.Clamp01(_nodes[i].energy / maxTemperature);
             _particles[i].startColor = GetHeatmapColor(t);
             _particles[i].startSize = nodeScale * (1f + t * 0.3f);
         }
@@ -146,6 +146,8 @@ public class FireSystem : MonoBehaviour
             // 2. Передача соседям
             var start = _edgeOffsets[i];
             var count = _edgeCounts[i];
+            
+            
 
             if (count > 0)
             {
@@ -172,7 +174,7 @@ public class FireSystem : MonoBehaviour
         }
 
         // Применяем изменения
-        for (int i = 0; i < _nodes.Length; i++)
+        for (var i = 0; i < _nodes.Length; i++)
         {
             var n = _nodes[i];
             n.energy += _energyDelta[i];
@@ -216,7 +218,7 @@ public class FireSystem : MonoBehaviour
         if (_affectedIndices.Count == 0) return;
 
         // Распределяем энергию
-        float energyPerNode = energyIntensity / _affectedIndices.Count;
+        var energyPerNode = energyIntensity / _affectedIndices.Count;
         foreach (int idx in _affectedIndices)
         {
             var n = _nodes[idx];
