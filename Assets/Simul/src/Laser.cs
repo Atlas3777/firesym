@@ -30,12 +30,12 @@ public class Laser : MonoBehaviour
     [SerializeField] private float flashDuration = 0.1f;  
     
     private FireSystem _fireSystem;
-    private LineRenderer lineRenderer;
-    private Camera mainCam;
+    private LineRenderer _lineRenderer;
+    private Camera _mainCam;
     
-    private float nextFireTime;
-    private float nextPowerShotTime;
-    private bool isPowerFlashing = false;
+    private float _nextFireTime;
+    private float _nextPowerShotTime;
+    private bool _isPowerFlashing;
 
     private void OnValidate()
     {
@@ -50,11 +50,11 @@ public class Laser : MonoBehaviour
 
     private void Awake()
     {
-        lineRenderer = GetComponent<LineRenderer>();
-        mainCam = Camera.main;
+        _lineRenderer = GetComponent<LineRenderer>();
+        _mainCam = Camera.main;
         _fireSystem = FindAnyObjectByType<FireSystem>();
-        lineRenderer.startWidth = standardWidth;
-        lineRenderer.endWidth = standardWidth;
+        _lineRenderer.startWidth = standardWidth;
+        _lineRenderer.endWidth = standardWidth;
     }
 
     private void Update()
@@ -62,68 +62,68 @@ public class Laser : MonoBehaviour
         var mouse = Mouse.current;
         if (mouse == null) return;
 
-        if (mouse.rightButton.wasPressedThisFrame && Time.time >= nextPowerShotTime)
+        if (mouse.rightButton.wasPressedThisFrame && Time.time >= _nextPowerShotTime)
         {
             StartCoroutine(ExecutePowerShotRoutine());
-            nextPowerShotTime = Time.time + powerShotCooldown;
+            _nextPowerShotTime = Time.time + powerShotCooldown;
         }
 
-        if (mouse.leftButton.isPressed && !isPowerFlashing)
+        if (mouse.leftButton.isPressed && !_isPowerFlashing)
         {
             UpdateLaserVisuals();
             
-            if (Time.time >= nextFireTime)
+            if (Time.time >= _nextFireTime)
             {
                 ApplyHeat(heatRadius, heatPerTick);
-                nextFireTime = Time.time + fireRate;
+                _nextFireTime = Time.time + fireRate;
             }
         }
-        else if (!isPowerFlashing)
+        else if (!_isPowerFlashing)
         {
-            lineRenderer.enabled = false;
+            _lineRenderer.enabled = false;
         }
     }
 
     private IEnumerator ExecutePowerShotRoutine()
     {
-        isPowerFlashing = true;
+        _isPowerFlashing = true;
         
-        Ray ray = mainCam.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0));
+        Ray ray = _mainCam.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0));
         Vector3 hitPoint = Physics.Raycast(ray, out RaycastHit hit, range) 
             ? hit.point 
             : ray.origin + (ray.direction * range);
 
         ApplyHeat(powerShotRadius, powerShotDamage);
 
-        lineRenderer.enabled = true;
-        lineRenderer.startWidth = powerWidth;
-        lineRenderer.endWidth = powerWidth;
-        lineRenderer.SetPosition(0, mainCam.transform.TransformPoint(offset));
-        lineRenderer.SetPosition(1, hitPoint);
+        _lineRenderer.enabled = true;
+        _lineRenderer.startWidth = powerWidth;
+        _lineRenderer.endWidth = powerWidth;
+        _lineRenderer.SetPosition(0, _mainCam.transform.TransformPoint(offset));
+        _lineRenderer.SetPosition(1, hitPoint);
 
         yield return new WaitForSeconds(flashDuration);
 
-        lineRenderer.startWidth = standardWidth;
-        lineRenderer.endWidth = standardWidth;
-        lineRenderer.enabled = false;
-        isPowerFlashing = false;
+        _lineRenderer.startWidth = standardWidth;
+        _lineRenderer.endWidth = standardWidth;
+        _lineRenderer.enabled = false;
+        _isPowerFlashing = false;
     }
 
     private void UpdateLaserVisuals()
     {
-        Ray ray = mainCam.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0));
+        Ray ray = _mainCam.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0));
         Vector3 hitPoint = Physics.Raycast(ray, out RaycastHit hit, range) 
             ? hit.point 
             : ray.origin + (ray.direction * range);
 
-        lineRenderer.enabled = true;
-        lineRenderer.SetPosition(0, mainCam.transform.TransformPoint(offset));
-        lineRenderer.SetPosition(1, hitPoint);
+        _lineRenderer.enabled = true;
+        _lineRenderer.SetPosition(0, _mainCam.transform.TransformPoint(offset));
+        _lineRenderer.SetPosition(1, hitPoint);
     }
 
     private void ApplyHeat(float radius, float intensity)
     {
-        Ray ray = mainCam.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0));
+        Ray ray = _mainCam.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0));
         if (Physics.Raycast(ray, out RaycastHit hit, range))
         {
             if (_fireSystem)

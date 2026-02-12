@@ -49,8 +49,8 @@ public class FireSystemBuilder : MonoBehaviour
 
             for (int i = 0; i < sourceNodes.Count; i++)
             {
-                FireNode fn = sourceNodes[i];
-                int globalIndex = globalIndexOffset + i;
+                var fn = sourceNodes[i];
+                var globalIndex = globalIndexOffset + i;
 
                 // Внутри цикла сборки в Builder:
                 var profile = MaterialLibrary.GetMaterialProfile(fn.materialType);
@@ -153,11 +153,11 @@ public class FireSystemBuilder : MonoBehaviour
 
         // --- ПРОХОД 3: Упаковка в CSR (Compressed Sparse Row) ---
         // FireSystem требует плоских массивов для скорости
-        List<SimEdge> flatEdges = new List<SimEdge>();
-        int[] offsets = new int[allNodes.Count];
-        int[] counts = new int[allNodes.Count];
+        var flatEdges = new List<SimEdge>();
+        var offsets = new int[allNodes.Count];
+        var counts = new int[allNodes.Count];
 
-        for (int i = 0; i < allNodes.Count; i++)
+        for (var i = 0; i < allNodes.Count; i++)
         {
             offsets[i] = flatEdges.Count;
             counts[i] = tempEdges[i].Count;

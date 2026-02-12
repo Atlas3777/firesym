@@ -1,8 +1,5 @@
 using UnityEngine;
 using System.Collections.Generic;
-#if UNITY_EDITOR
-using UnityEditor;
-#endif
 
 public class FireGraph : MonoBehaviour
 {
@@ -14,9 +11,6 @@ public class FireGraph : MonoBehaviour
     {
         _nodes = nodes;
     }
-
-    public void AddNode(FireNode node) => _nodes.Add(node);
-    public FireNode GetNode(int index) => index >= 0 && index < _nodes.Count ? _nodes[index] : null;
 
 #if UNITY_EDITOR
     private void OnDrawGizmos()

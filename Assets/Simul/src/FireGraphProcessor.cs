@@ -14,23 +14,23 @@ public static class FireGraphProcessor
             return;
         }
 
-        Vector3[] srcVertices = mf.sharedMesh.vertices;
-        int[] srcTriangles = mf.sharedMesh.triangles;
-        Transform tr = graph.transform;
+        var srcVertices = mf.sharedMesh.vertices;
+        var srcTriangles = mf.sharedMesh.triangles;
+        var tr = graph.transform;
 
-        Dictionary<Vector3Int, int> spatialMap = new();
-        List<FireNode> nodes = new();
+        var spatialMap = new Dictionary<Vector3Int, int>();
+        var nodes = new List<FireNode>();
 
         for (int i = 0; i < srcTriangles.Length; i += 3)
         {
-            Vector3 v1 = tr.TransformPoint(srcVertices[srcTriangles[i]]);
-            Vector3 v2 = tr.TransformPoint(srcVertices[srcTriangles[i + 1]]);
-            Vector3 v3 = tr.TransformPoint(srcVertices[srcTriangles[i + 2]]);
+            var v1 = tr.TransformPoint(srcVertices[srcTriangles[i]]);
+            var v2 = tr.TransformPoint(srcVertices[srcTriangles[i + 1]]);
+            var v3 = tr.TransformPoint(srcVertices[srcTriangles[i + 2]]);
 
             ProcessTriangleRecursively(v1, v2, v3, targetSize, nodes, spatialMap, combustible);
         }
 
-        int originalCount = nodes.Count;
+        var originalCount = nodes.Count;
 
         if (enableSimplification && nodes.Count > 0)
         {
@@ -48,15 +48,15 @@ public static class FireGraphProcessor
     private static void ProcessTriangleRecursively(Vector3 p1, Vector3 p2, Vector3 p3, float targetLen,
         List<FireNode> nodes, Dictionary<Vector3Int, int> spatialMap, Combustible combustible)
     {
-        float d12 = Vector3.Distance(p1, p2);
-        float d23 = Vector3.Distance(p2, p3);
-        float d31 = Vector3.Distance(p3, p1);
+        var d12 = Vector3.Distance(p1, p2);
+        var d23 = Vector3.Distance(p2, p3);
+        var d31 = Vector3.Distance(p3, p1);
 
         if (d12 <= targetLen && d23 <= targetLen && d31 <= targetLen)
         {
-            int a = GetOrAddNode(p1, nodes, spatialMap, combustible, targetLen);
-            int b = GetOrAddNode(p2, nodes, spatialMap, combustible, targetLen);
-            int c = GetOrAddNode(p3, nodes, spatialMap, combustible, targetLen);
+            var a = GetOrAddNode(p1, nodes, spatialMap, combustible, targetLen);
+            var b = GetOrAddNode(p2, nodes, spatialMap, combustible, targetLen);
+            var c = GetOrAddNode(p3, nodes, spatialMap, combustible, targetLen);
 
             var profile = MaterialLibrary.GetMaterialProfile(combustible.Material);
             Link(nodes, a, b, profile.burnRate);
@@ -123,11 +123,11 @@ public static class FireGraphProcessor
 
     private static List<FireNode> RebuildGraphWithoutNodes(List<FireNode> nodes, bool[] toRemove, float burnSpeed)
     {
-        List<FireNode> newNodes = new();
-        int[] oldToNewMap = new int[nodes.Count];
+        var newNodes = new List<FireNode>();
+        var oldToNewMap = new int[nodes.Count];
 
         // 1. Создаем новые (выжившие) узлы
-        for (int i = 0; i < nodes.Count; i++)
+        for (var i = 0; i < nodes.Count; i++)
         {
             if (!toRemove[i])
             {
@@ -147,26 +147,26 @@ public static class FireGraphProcessor
         {
             // Нас интересуют только те узлы, которые МЫ ОСТАВИЛИ
             if (toRemove[i]) continue;
-            int newIdxA = oldToNewMap[i];
+            var newIdxA = oldToNewMap[i];
 
             foreach (var edge in nodes[i].neighbors)
             {
-                int neighborIdx = edge.targetIndex;
+                var neighborIdx = edge.targetIndex;
 
                 // Если сосед тоже выжил — просто соединяем
                 if (!toRemove[neighborIdx])
                 {
-                    int newIdxB = oldToNewMap[neighborIdx];
+                    var newIdxB = oldToNewMap[neighborIdx];
                     Link(newNodes, newIdxA, newIdxB, burnSpeed);
                 }
                 else
                 {
                     // СЛОЖНЫЙ СЛУЧАЙ: Сосед удален. 
                     // Нужно найти ближайшего "выжившего" за этим удаленным узлом.
-                    int survivorIdx = FindNextSurvivor(neighborIdx, i, nodes, toRemove);
+                    var survivorIdx = FindNextSurvivor(neighborIdx, i, nodes, toRemove);
                     if (survivorIdx != -1)
                     {
-                        int newIdxB = oldToNewMap[survivorIdx];
+                        var newIdxB = oldToNewMap[survivorIdx];
                         Link(newNodes, newIdxA, newIdxB, burnSpeed);
                     }
                 }
@@ -176,7 +176,7 @@ public static class FireGraphProcessor
         return newNodes;
     }
 
-// Рекурсивный поиск следующей неудаленной ноды
+    // Рекурсивный поиск следующей неудаленной ноды
     private static int FindNextSurvivor(int currentIdx, int cameFromIdx, List<FireNode> allNodes, bool[] toRemove)
     {
         // Если эта нода выжила — возвращаем её
@@ -187,7 +187,7 @@ public static class FireGraphProcessor
         {
             if (edge.targetIndex == cameFromIdx) continue; // Не идем назад
 
-            int found = FindNextSurvivor(edge.targetIndex, currentIdx, allNodes, toRemove);
+            var found = FindNextSurvivor(edge.targetIndex, currentIdx, allNodes, toRemove);
             if (found != -1) return found;
         }
 
@@ -198,17 +198,17 @@ public static class FireGraphProcessor
     {
         if (nodes.Count == 0 || radius <= 0f) return nodes;
         var profile = MaterialLibrary.GetMaterialProfile(combustible.Material);
-        bool[] merged = new bool[nodes.Count];
-        List<FireNode> result = new();
+        var merged = new bool[nodes.Count];
+        var result = new List<FireNode>();
 
-        for (int i = 0; i < nodes.Count; i++)
+        for (var i = 0; i < nodes.Count; i++)
         {
             if (merged[i]) continue;
-            Vector3 sum = nodes[i].position;
-            int count = 1;
+            var sum = nodes[i].position;
+            var count = 1;
             merged[i] = true;
 
-            for (int j = i + 1; j < nodes.Count; j++)
+            for (var j = i + 1; j < nodes.Count; j++)
             {
                 if (!merged[j] && Vector3.Distance(nodes[i].position, nodes[j].position) <= radius)
                 {
@@ -222,16 +222,16 @@ public static class FireGraphProcessor
                 { position = sum / count, materialType = nodes[i].materialType, neighbors = new List<FireEdge>() });
         }
 
-        Dictionary<(int, int), float> edges = new();
-        for (int i = 0; i < nodes.Count; i++)
+        var edges = new Dictionary<(int, int), float>();
+        for (var i = 0; i < nodes.Count; i++)
         {
-            int a = FindCluster(nodes[i].position, result, radius);
+            var a = FindCluster(nodes[i].position, result, radius);
             if (a < 0) continue;
             foreach (var e in nodes[i].neighbors)
             {
-                int b = FindCluster(nodes[e.targetIndex].position, result, radius);
+                var b = FindCluster(nodes[e.targetIndex].position, result, radius);
                 if (b < 0 || a == b) continue;
-                float d = Vector3.Distance(result[a].position, result[b].position);
+                var d = Vector3.Distance(result[a].position, result[b].position);
                 var key = (Mathf.Min(a, b), Mathf.Max(a, b));
                 if (!edges.ContainsKey(key) || (d / profile.burnRate) < edges[key]) edges[key] = d / profile.burnRate;
             }
@@ -256,7 +256,7 @@ public static class FireGraphProcessor
 
     private static List<FireNode> RemoveLinearNodes(List<FireNode> nodes, Combustible combustible)
     {
-        bool[] toRemove = new bool[nodes.Count];
+        var toRemove = new bool[nodes.Count];
         var profile = MaterialLibrary.GetMaterialProfile(combustible.Material);
         for (int i = 0; i < nodes.Count; i++)
             if (nodes[i].neighbors.Count == 2)
@@ -266,8 +266,8 @@ public static class FireGraphProcessor
 
     private static List<FireNode> RemoveDanglingNodes(List<FireNode> nodes)
     {
-        bool[] toRemove = new bool[nodes.Count];
-        bool found = false;
+        var toRemove = new bool[nodes.Count];
+        var found = false;
         for (int i = 0; i < nodes.Count; i++)
         {
             if (nodes[i].neighbors.Count <= 1)
@@ -279,7 +279,6 @@ public static class FireGraphProcessor
 
         return found ? RebuildGraphWithoutNodes(nodes, toRemove, 1f) : nodes;
     }
-
 
     private static bool HasNeighbor(FireNode node, int idx)
     {
