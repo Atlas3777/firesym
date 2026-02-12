@@ -52,37 +52,80 @@ public static class FireGraphProcessor
         var d23 = Vector3.Distance(p2, p3);
         var d31 = Vector3.Distance(p3, p1);
 
-        if (d12 <= targetLen && d23 <= targetLen && d31 <= targetLen)
-        {
-            var a = GetOrAddNode(p1, nodes, spatialMap, combustible, targetLen);
-            var b = GetOrAddNode(p2, nodes, spatialMap, combustible, targetLen);
-            var c = GetOrAddNode(p3, nodes, spatialMap, combustible, targetLen);
+        float maxEdge = Mathf.Max(d12, Mathf.Max(d23, d31));
+        float minEdge = Mathf.Min(d12, Mathf.Min(d23, d31));
 
-            var profile = MaterialLibrary.GetMaterialProfile(combustible.Material);
-            Link(nodes, a, b, profile.burnRate);
-            Link(nodes, b, c, profile.burnRate);
-            Link(nodes, c, a, profile.burnRate);
+        // Условие выхода: если самый длинный край уже меньше целевого размера
+        if (maxEdge <= targetLen)
+        {
+            AddLeafTriangle(p1, p2, p3, targetLen, nodes, spatialMap, combustible);
             return;
         }
 
-        if (d12 >= d23 && d12 >= d31)
+        // --- ЛОГИКА ГИБРИДНОГО РАЗБИЕНИЯ ---
+
+        // Эвристика: если треугольник "вытянут" (длинная сторона > 1.4 короткой),
+        // мы делим его пополам, чтобы сделать части более "квадратными".
+        // Если же он уже "квадратный" (или равносторонний), но просто большой,
+        // мы делим его на 4 части ("Triforce"), чтобы равномерно заполнить площадь.
+        
+        bool isStretched = maxEdge > (minEdge * 1.4f); 
+
+        if (!isStretched)
         {
-            Vector3 m = (p1 + p2) * 0.5f;
-            ProcessTriangleRecursively(p1, m, p3, targetLen, nodes, spatialMap, combustible);
-            ProcessTriangleRecursively(m, p2, p3, targetLen, nodes, spatialMap, combustible);
-        }
-        else if (d23 >= d12 && d23 >= d31)
-        {
-            Vector3 m = (p2 + p3) * 0.5f;
-            ProcessTriangleRecursively(p1, p2, m, targetLen, nodes, spatialMap, combustible);
-            ProcessTriangleRecursively(p1, m, p3, targetLen, nodes, spatialMap, combustible);
+            // РЕЖИМ 2: Равномерное заполнение (Triforce Split)
+            // Делим все стороны пополам и создаем 4 треугольника.
+            // Это убивает "ромбики" и заполняет центр.
+            Vector3 m1 = (p1 + p2) * 0.5f;
+            Vector3 m2 = (p2 + p3) * 0.5f;
+            Vector3 m3 = (p3 + p1) * 0.5f;
+
+            ProcessTriangleRecursively(p1, m1, m3, targetLen, nodes, spatialMap, combustible); // Угол 1
+            ProcessTriangleRecursively(m1, p2, m2, targetLen, nodes, spatialMap, combustible); // Угол 2
+            ProcessTriangleRecursively(m2, p3, m3, targetLen, nodes, spatialMap, combustible); // Угол 3
+            ProcessTriangleRecursively(m1, m2, m3, targetLen, nodes, spatialMap, combustible); // Центр
         }
         else
         {
-            Vector3 m = (p3 + p1) * 0.5f;
-            ProcessTriangleRecursively(p1, p2, m, targetLen, nodes, spatialMap, combustible);
-            ProcessTriangleRecursively(m, p2, p3, targetLen, nodes, spatialMap, combustible);
+            // РЕЖИМ 1: Исправление формы (Longest Edge Split)
+            // Стандартное поведение: режем длинную сторону.
+            if (d12 >= d23 && d12 >= d31)
+            {
+                Vector3 m = (p1 + p2) * 0.5f;
+                ProcessTriangleRecursively(p1, m, p3, targetLen, nodes, spatialMap, combustible);
+                ProcessTriangleRecursively(m, p2, p3, targetLen, nodes, spatialMap, combustible);
+            }
+            else if (d23 >= d12 && d23 >= d31)
+            {
+                Vector3 m = (p2 + p3) * 0.5f;
+                ProcessTriangleRecursively(p1, p2, m, targetLen, nodes, spatialMap, combustible);
+                ProcessTriangleRecursively(p1, m, p3, targetLen, nodes, spatialMap, combustible);
+            }
+            else
+            {
+                Vector3 m = (p3 + p1) * 0.5f;
+                ProcessTriangleRecursively(p1, p2, m, targetLen, nodes, spatialMap, combustible);
+                ProcessTriangleRecursively(m, p2, p3, targetLen, nodes, spatialMap, combustible);
+            }
         }
+    }
+
+    // Вынес добавление листьев в отдельный метод для чистоты
+    private static void AddLeafTriangle(Vector3 p1, Vector3 p2, Vector3 p3, float targetLen,
+        List<FireNode> nodes, Dictionary<Vector3Int, int> spatialMap, Combustible combustible)
+    {
+        var a = GetOrAddNode(p1, nodes, spatialMap, combustible, targetLen);
+        var b = GetOrAddNode(p2, nodes, spatialMap, combustible, targetLen);
+        var c = GetOrAddNode(p3, nodes, spatialMap, combustible, targetLen);
+
+        var profile = MaterialLibrary.GetMaterialProfile(combustible.Material);
+        
+        // Добавляем связи. 
+        // GetOrAddNode вернет существующие индексы для смежных треугольников,
+        // поэтому сетка будет автоматически "сшита".
+        Link(nodes, a, b, profile.burnRate);
+        Link(nodes, b, c, profile.burnRate);
+        Link(nodes, c, a, profile.burnRate);
     }
 
     private static int GetOrAddNode(Vector3 pos, List<FireNode> nodes, Dictionary<Vector3Int, int> map,

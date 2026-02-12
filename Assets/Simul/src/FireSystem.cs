@@ -157,12 +157,12 @@ public class FireSystem : MonoBehaviour
                     // Передаем энергию только если мы "горячее" соседа
                     if (currentEnergy > neighborEnergy)
                     {
-                        float diff = currentEnergy - neighborEnergy;
+                        var diff = currentEnergy - neighborEnergy;
 
                         // Делим на count, чтобы распределить поток между всеми трубками
                         // Теперь даже если thermalConductivity = 1.0, 
                         // узел не отдаст больше, чем разница с соседями.
-                        float transfer = (diff * thermalConductivity) / count;
+                        var transfer = (diff * thermalConductivity) / count;
 
                         _energyDelta[i] -= transfer;
                         _energyDelta[neighborIdx] += transfer;
