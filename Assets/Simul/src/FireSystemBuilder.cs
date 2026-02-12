@@ -104,8 +104,8 @@ public class FireSystemBuilder : MonoBehaviour
                 tempEdges.Add(nodeEdges);
 
                 // C. Регистрируем в сетке для поиска (для шага 2)
-                var cell = SpatialHash.WorldToCell(fn.position, spatialCellSize); //
-                int key = SpatialHash.CellKey(cell.x, cell.y, cell.z); //
+                var cell = SpatialHash.WorldToCell(fn.position, spatialCellSize); 
+                int key = SpatialHash.CellKey(cell.x, cell.y, cell.z); 
 
                 if (!spatialGrid.ContainsKey(key))
                     spatialGrid[key] = new List<int>();

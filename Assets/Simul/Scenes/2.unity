@@ -21160,13 +21160,13 @@ MonoBehaviour:
   range: 100
   offset: {x: 0.3, y: -0.2, z: 0.5}
   fireRate: 0.1
-  heatPerTick: 156.2
+  heatPerTick: 304.1
   heatRadius: 0.25
   standardWidth: 0.1
   laserOutputInfo: "\u0416\u0430\u0440\u0438\u0442 10,0 \u0440\u0430\u0437(\u0430)
-    \u0432 \u0441\u0435\u043A. \u0412\u0441\u0435\u0433\u043E: 1562,0 \u0435\u0434/\u0441\u0435\u043A"
+    \u0432 \u0441\u0435\u043A. \u0412\u0441\u0435\u0433\u043E: 3041,0 \u0435\u0434/\u0441\u0435\u043A"
   ticksPerSecond: 10
-  totalHeatPerSecond: 1562
+  totalHeatPerSecond: 3041
   powerShotCooldown: 1
   powerShotRadius: 0.5
   powerShotDamage: 100000
@@ -88622,7 +88622,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FireSystem
   fireParticleSystem: {fileID: 161559632}
-  coolingSpeed: 0.003
+  coolingSpeed: 0.01
+  convectionRate: 0.25
+  conductionRate: 0.05
   maxTemperature: 500
   nodeScale: 0.1
 --- !u!4 &1707537522

@@ -7,9 +7,11 @@ public class FireSystem : MonoBehaviour
 {
     public ParticleSystem fireParticleSystem;
 
-    //public float thermalConductivity = 0.67f; // Сколько разницы отдаём
-    public float coolingSpeed = 0.01f; // насколько уменьшаяется t за тик  
-    public float maxTemperature = 500f; // Температура "белого каления"
+    [Header("Simulation Settings")] public float coolingSpeed = 0.02f; // Пассивная потеря (излучение)
+    public float convectionRate = 0.25f; // Какую часть энергии нода пытается отдать вверх за тик
+    public float conductionRate = 0.05f; // Классическая теплопроводность (во все стороны)
+
+    public float maxTemperature = 500f;
     public float nodeScale = 0.1f;
 
     private SimNode[] _nodes;
@@ -52,7 +54,6 @@ public class FireSystem : MonoBehaviour
         _edgeOffsets = newOffsets;
         _edgeCounts = newCounts;
 
-        // Инициализируем массив частиц один раз  
         _particles = new ParticleSystem.Particle[_nodes.Length];
 
         for (var i = 0; i < _nodes.Length; i++)
@@ -60,12 +61,10 @@ public class FireSystem : MonoBehaviour
             _particles[i].position = _nodes[i].position;
             _particles[i].startSize = nodeScale;
             _particles[i].startColor = Color.gray;
-
             _particles[i].remainingLifetime = 10000f;
             _particles[i].startLifetime = 10000f;
         }
 
-        // Очищаем старые и принудительно выставляем новые
         fireParticleSystem.Clear();
         fireParticleSystem.SetParticles(_particles, _nodes.Length);
 
@@ -73,7 +72,7 @@ public class FireSystem : MonoBehaviour
         _cellSize = cellSize;
 
         _energyDelta = new float[_nodes.Length];
-        Debug.Log($"<color=orange>FireSystem Running:</color> {_nodes.Length} particles.");
+        Debug.Log($"<color=orange>FireSystem Running:</color> {_nodes.Length} particles. Convection Mode ON.");
     }
 
     void Update()
@@ -97,19 +96,21 @@ public class FireSystem : MonoBehaviour
         var count = _nodes.Length;
         for (var i = 0; i < count; i++)
         {
-            // Проверяем наличие топлива
             if (_nodes[i].fuel <= 0)
             {
-                _particles[i].startColor = Color.mediumVioletRed;
-                _particles[i].startSize = nodeScale; // Возвращаем обычный размер для "угля"
+                _particles[i].startColor = Color.gray; // Сгорел - серый
+                _particles[i].startSize = nodeScale * 0.8f;
             }
             else
             {
                 var t = Mathf.Clamp01(_nodes[i].temperature / maxTemperature);
                 _particles[i].startColor = GetHeatmapColor(t);
-                _particles[i].startSize = nodeScale * (1f + t * 0.3f);
+
+                // Если горит или очень горячий - увеличиваем визуально
+                float sizeMult = _nodes[i].burning ? 1.5f : 1.0f;
+                _particles[i].startSize = nodeScale * (1f + t * 0.5f) * sizeMult;
             }
-        
+
             _particles[i].remainingLifetime = 1000f;
         }
 
@@ -118,13 +119,6 @@ public class FireSystem : MonoBehaviour
 
     private Color GetHeatmapColor(float t)
     {
-        // Стандартная схема тепловизора:
-        // 0.0: Черный/Фиолетовый
-        // 0.2: Синий
-        // 0.4: Зеленый
-        // 0.6: Желтый
-        // 0.8: Оранжевый/Красный
-        // 1.0: Белый
         if (t < 0.2f) return Color.Lerp(new Color(0.1f, 0f, 0.2f), Color.blue, t / 0.2f);
         if (t < 0.4f) return Color.Lerp(Color.blue, Color.green, (t - 0.2f) / 0.2f);
         if (t < 0.6f) return Color.Lerp(Color.green, Color.yellow, (t - 0.4f) / 0.2f);
@@ -136,7 +130,7 @@ public class FireSystem : MonoBehaviour
     {
         Array.Clear(_energyDelta, 0, _energyDelta.Length);
 
-        // ФАЗА 1: Горение и базовое охлаждение
+        // --- ФАЗА 1: Горение и расчет базовой температуры ---
         for (int i = 0; i < _nodes.Length; i++)
         {
             ref var node = ref _nodes[i];
@@ -148,7 +142,7 @@ public class FireSystem : MonoBehaviour
                 if (node.burning)
                 {
                     node.fuel -= 1;
-                    _energyDelta[i] += node.calorificValue;
+                    _energyDelta[i] += node.calorificValue; // Генерация тепла
                     if (node.fuel <= 0) node.burning = false;
                 }
                 else if (node.temperature >= node.ignitionTemp)
@@ -156,58 +150,80 @@ public class FireSystem : MonoBehaviour
                     node.burning = true;
                 }
             }
-
-            // Остывание в среду
-            float coolingLoss = node.temperature * coolingSpeed;
-            _energyDelta[i] -= coolingLoss;
         }
 
-        // ФАЗА 2: Передача энергии (Кондукция)
+        // --- ФАЗА 2: Распределение энергии ---
         for (int i = 0; i < _nodes.Length; i++)
         {
+            float temp = _nodes[i].temperature;
+            float energy = _nodes[i].energy;
+            bool isBurning = _nodes[i].burning;
+
+            if (temp < 1.0f && !isBurning) continue;
+
+            // 1. ПАССИВНОЕ ОХЛАЖДЕНИЕ (Окружающая среда)
+            // Нода просто теряет часть тепла в пространство
+            float cooling = temp * coolingSpeed;
+            _energyDelta[i] -= cooling;
+
             int start = _edgeOffsets[i];
             int count = _edgeCounts[i];
             if (count == 0) continue;
 
+            // 2. КОНВЕКЦИЯ (Только если горит!)
+            // "Лифт" вверх, который активируется только при пламени
+            float convectionPool = 0f;
+            if (isBurning)
+            {
+                // Берем 50-60% от генерации тепла (calorificValue) и пускаем строго вверх
+                convectionPool = _nodes[i].calorificValue * 0.6f;
+                _energyDelta[i] -= convectionPool;
+            }
+
+            float totalUpWeight = 0f;
+            // Сначала считаем веса для конвекции
+            if (convectionPool > 0)
+            {
+                for (int j = 0; j < count; j++)
+                {
+                    float weight = _edges[start + j].hightConductivity;
+                    if (weight > 1.1f) totalUpWeight += weight; // Берем только тех, кто выше
+                }
+            }
+
+            // 3. ОБМЕН С СОСЕДЯМИ (Кондукция + Конвекция)
             for (int j = 0; j < count; j++)
             {
                 var edge = _edges[start + j];
                 int neighborIdx = edge.targetIndex;
+                float neighborTemp = _nodes[neighborIdx].temperature;
 
-                // Обрабатываем каждое ребро только один раз (i < neighborIdx)
-                if (i > neighborIdx) continue;
+                // А) Горизонтальная и вертикальная теплопроводность (всегда)
+                // Это то, что позволяет огню ползти по полу
+                if (temp > neighborTemp)
+                {
+                    // Стандартная формула теплопередачи
+                    float diff = temp - neighborTemp;
+                    float conduction = diff * conductionRate * edge.materialConductivity;
 
-                float tempA = _nodes[i].temperature;
-                float tempB = _nodes[neighborIdx].temperature;
+                    _energyDelta[i] -= conduction;
+                    _energyDelta[neighborIdx] += conduction;
+                }
 
-                if (Mathf.Abs(tempA - tempB) < 0.01f) continue;
-
-                // Считаем эффективную проводимость с учетом количества связей обоих узлов
-                // Это предотвращает взрывную передачу энергии в плотных сетках
-                float avgConnections = (_edgeCounts[i] + _edgeCounts[neighborIdx]) * 0.5f;
-                float flowRate = (edge.materialConductivity / avgConnections);
-
-                float avgCapacity = (_nodes[i].heatCapacity + _nodes[neighborIdx].heatCapacity) * 0.5f;
-
-                // Формула: dE = dT * C * conductivity
-                float energyTransfer = (tempA - tempB) * avgCapacity * flowRate;
-
-                // Ограничитель, чтобы не передать больше, чем выровняет температуры
-                float maxSafeTransfer = Mathf.Abs(tempA - tempB) * 0.5f * avgCapacity;
-                energyTransfer = Mathf.Clamp(energyTransfer, -maxSafeTransfer, maxSafeTransfer);
-
-                _energyDelta[i] -= energyTransfer;
-                _energyDelta[neighborIdx] += energyTransfer;
+                // Б) Распределение конвекционного пула (только вверх)
+                if (convectionPool > 0 && totalUpWeight > 0 && edge.hightConductivity > 1.1f)
+                {
+                    float share = (edge.hightConductivity / totalUpWeight) * convectionPool;
+                    _energyDelta[neighborIdx] += share;
+                }
             }
         }
 
-        // ФАЗА 3: Применение
+        // --- ФАЗА 3: Применение ---
         for (int i = 0; i < _nodes.Length; i++)
         {
             _nodes[i].energy += _energyDelta[i];
             if (_nodes[i].energy < 0) _nodes[i].energy = 0;
-
-            // Обновляем температуру для следующего кадра/отрисовки
             _nodes[i].temperature = _nodes[i].energy / Mathf.Max(0.1f, _nodes[i].heatCapacity);
         }
     }
@@ -217,8 +233,6 @@ public class FireSystem : MonoBehaviour
         if (_spatialGrid == null || _spatialGrid.Count == 0) return;
 
         var rSqr = radius * radius;
-
-        // Определяем диапазон ячеек, которые покрывает радиус  
         var minCell = SpatialHash.WorldToCell(worldPoint - new Vector3(radius, radius, radius), _cellSize);
         var maxCell = SpatialHash.WorldToCell(worldPoint + new Vector3(radius, radius, radius), _cellSize);
 
@@ -247,7 +261,6 @@ public class FireSystem : MonoBehaviour
 
         if (_affectedIndices.Count == 0) return;
 
-        // Распределяем энергию
         var energyPerNode = energyIntensity / _affectedIndices.Count;
         foreach (int idx in _affectedIndices)
         {

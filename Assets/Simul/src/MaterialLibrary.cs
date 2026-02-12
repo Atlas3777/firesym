@@ -35,9 +35,9 @@ public class MaterialLibrary
             type = FireMaterial.Wood,
             ignitionTemp = 250,     // Средняя температура воспламенения
             initialFuel = 500,      // Горит долго
-            calorificValue = 40,    // Хорошо греет соседей
-            heatTransfer = 0.3f,    // Плохой проводник (горит локально)
-            heatCapacity = 5     // Средне держит тепло
+            calorificValue = 120,    // Хорошо греет соседей
+            heatTransfer = 0.5f,    // Плохой проводник (горит локально)
+            heatCapacity = 15     // Средне держит тепло
         };
 
         // БУМАГА: Вспыхивает мгновенно, быстро кончается.
@@ -46,7 +46,7 @@ public class MaterialLibrary
             type = FireMaterial.Paper,
             ignitionTemp = 180,
             initialFuel = 50,       // Сгорает очень быстро
-            calorificValue = 15,    // Яркое, но короткое пламя
+            calorificValue = 45,    // Яркое, но короткое пламя
             heatTransfer = 0.2f,    
             heatCapacity = 1     // Моментальный нагрев
         };
