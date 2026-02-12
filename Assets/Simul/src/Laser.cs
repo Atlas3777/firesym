@@ -52,7 +52,7 @@ public class Laser : MonoBehaviour
     {
         lineRenderer = GetComponent<LineRenderer>();
         mainCam = Camera.main;
-        _fireSystem = FindObjectOfType<FireSystem>();
+        _fireSystem = FindAnyObjectByType<FireSystem>();
         lineRenderer.startWidth = standardWidth;
         lineRenderer.endWidth = standardWidth;
     }

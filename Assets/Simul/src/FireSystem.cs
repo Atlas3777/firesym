@@ -5,33 +5,28 @@ using UnityEngine;
 [DefaultExecutionOrder(100)]
 public class FireSystem : MonoBehaviour
 {
-    [Header("Heat Settings")] public float thermalConductivity = 0.67f; // Насколько быстро тепло уходит соседям
+    public ParticleSystem fireParticleSystem;
+    public float thermalConductivity = 0.67f; // Насколько быстро тепло уходит соседям
     public float coolingSpeed = 0.003f; // насколько уменьшаяется t за тик
     public float maxTemperature = 500f; // Температура "белого каления"
+    public float nodeScale = 0.1f;
 
-    [Header("Simulation Data")] [HideInInspector]
-    public SimNode[] nodes;
+    private SimNode[] _nodes;
+    private SimEdge[] _edges;
+    private int[] _edgeOffsets;
+    private int[] _edgeCounts;
+    
+    private float[] _energyDelta;
 
-    [HideInInspector] public SimEdge[] edges;
-    public int[] edgeOffsets;
-    public int[] edgeCounts;
-
-    [Header("Visualization Settings")] public bool showVisualization = true;
-    public ParticleSystem fireParticleSystem;
-    [Range(0.01f, 0.5f)] public float nodeScale = 0.1f;
-
+    private readonly List<int> _affectedIndices = new(256);
     private Dictionary<int, List<int>> _spatialGrid;
     private float _cellSize;
-    List<int> _affectedIndices = new(256);
-    
 
     private ParticleSystem.Particle[] _particles;
-    private bool _initialized = false;
     private FireSystemBuilder _builder;
 
     private const float SIM_STEP = 0.1f;
     private float _timer;
-    private float[] _energyDelta;
 
     void Awake()
     {
@@ -51,17 +46,17 @@ public class FireSystem : MonoBehaviour
         int[] newOffsets, int[] newCounts,
         Dictionary<int, List<int>> spatialGrid, float cellSize)
     {
-        nodes = newNodes.ToArray();
-        edges = newEdges.ToArray();
-        edgeOffsets = newOffsets;
-        edgeCounts = newCounts;
+        _nodes = newNodes.ToArray();
+        _edges = newEdges.ToArray();
+        _edgeOffsets = newOffsets;
+        _edgeCounts = newCounts;
 
         // Инициализируем массив частиц один раз
-        _particles = new ParticleSystem.Particle[nodes.Length];
+        _particles = new ParticleSystem.Particle[_nodes.Length];
 
-        for (int i = 0; i < nodes.Length; i++)
+        for (int i = 0; i < _nodes.Length; i++)
         {
-            _particles[i].position = nodes[i].position;
+            _particles[i].position = _nodes[i].position;
             _particles[i].startSize = nodeScale;
             _particles[i].startColor = Color.gray;
 
@@ -72,13 +67,13 @@ public class FireSystem : MonoBehaviour
 
         // Очищаем старые и принудительно выставляем новые
         fireParticleSystem.Clear();
-        fireParticleSystem.SetParticles(_particles, nodes.Length);
+        fireParticleSystem.SetParticles(_particles, _nodes.Length);
 
 
         // Сразу задаем позиции, так как они в вашей симуляции статичны
-        for (int i = 0; i < nodes.Length; i++)
+        for (int i = 0; i < _nodes.Length; i++)
         {
-            _particles[i].position = nodes[i].position;
+            _particles[i].position = _nodes[i].position;
             _particles[i].startSize = nodeScale;
             _particles[i].startColor = Color.gray;
         }
@@ -86,21 +81,20 @@ public class FireSystem : MonoBehaviour
         _spatialGrid = spatialGrid;
         _cellSize = cellSize;
 
-        _energyDelta = new float[nodes.Length];
-        fireParticleSystem.Emit(nodes.Length);
-        Debug.Log($"<color=orange>FireSystem Running:</color> {nodes.Length} particles.");
+        _energyDelta = new float[_nodes.Length];
+        Debug.Log($"<color=orange>FireSystem Running:</color> {_nodes.Length} particles.");
     }
 
     void Update()
     {
-        if (nodes == null || nodes.Length == 0) return;
+        if (_nodes == null || _nodes.Length == 0) return;
 
         _timer += Time.deltaTime;
         if (_timer >= SIM_STEP)
         {
             StepSimulation();
             _timer -= SIM_STEP;
-            if (showVisualization && fireParticleSystem != null)
+            if (fireParticleSystem)
             {
                 UpdateParticles();
             }
@@ -109,10 +103,10 @@ public class FireSystem : MonoBehaviour
 
     private void UpdateParticles()
     {
-        int count = nodes.Length;
+        int count = _nodes.Length;
         for (int i = 0; i < count; i++)
         {
-            float t = Mathf.Clamp01(nodes[i].energy / maxTemperature);
+            float t = Mathf.Clamp01(_nodes[i].energy / maxTemperature);
             _particles[i].startColor = GetHeatmapColor(t);
             _particles[i].startSize = nodeScale * (1f + t * 0.3f);
         }
@@ -141,24 +135,24 @@ public class FireSystem : MonoBehaviour
     {
         Array.Clear(_energyDelta, 0, _energyDelta.Length);
 
-        for (int i = 0; i < nodes.Length; i++)
+        for (int i = 0; i < _nodes.Length; i++)
         {
-            float currentEnergy = nodes[i].energy;
+            float currentEnergy = _nodes[i].energy;
             if (currentEnergy <= 0) continue;
 
             // 1. Остывание
             _energyDelta[i] -= currentEnergy * coolingSpeed;
 
             // 2. Передача соседям
-            var start = edgeOffsets[i];
-            var count = edgeCounts[i];
+            var start = _edgeOffsets[i];
+            var count = _edgeCounts[i];
 
             if (count > 0)
             {
                 for (var j = 0; j < count; j++)
                 {
-                    var neighborIdx = edges[start + j].targetIndex;
-                    var neighborEnergy = nodes[neighborIdx].energy;
+                    var neighborIdx = _edges[start + j].targetIndex;
+                    var neighborEnergy = _nodes[neighborIdx].energy;
 
                     // Передаем энергию только если мы "горячее" соседа
                     if (currentEnergy > neighborEnergy)
@@ -178,12 +172,11 @@ public class FireSystem : MonoBehaviour
         }
 
         // Применяем изменения
-        for (int i = 0; i < nodes.Length; i++)
+        for (int i = 0; i < _nodes.Length; i++)
         {
-            var n = nodes[i];
-            // Mathf.Max(0, ...) — это "подушка безопасности"
-            n.energy = n.energy + _energyDelta[i];
-            nodes[i] = n;
+            var n = _nodes[i];
+            n.energy += _energyDelta[i];
+            _nodes[i] = n;
         }
     }
 
@@ -191,10 +184,9 @@ public class FireSystem : MonoBehaviour
     {
         if (_spatialGrid == null || _spatialGrid.Count == 0) return;
 
-        float rSqr = radius * radius;
+        var rSqr = radius * radius;
 
         // Определяем диапазон ячеек, которые покрывает радиус
-        // Берем с запасом (WorldToCell должен возвращать Vector3Int)
         var minCell = SpatialHash.WorldToCell(worldPoint - new Vector3(radius, radius, radius), _cellSize);
         var maxCell = SpatialHash.WorldToCell(worldPoint + new Vector3(radius, radius, radius), _cellSize);
 
@@ -211,7 +203,7 @@ public class FireSystem : MonoBehaviour
                     {
                         foreach (var idx in cellNodes)
                         {
-                            if ((nodes[idx].position - worldPoint).sqrMagnitude <= rSqr)
+                            if ((_nodes[idx].position - worldPoint).sqrMagnitude <= rSqr)
                             {
                                 _affectedIndices.Add(idx);
                             }
@@ -227,9 +219,9 @@ public class FireSystem : MonoBehaviour
         float energyPerNode = energyIntensity / _affectedIndices.Count;
         foreach (int idx in _affectedIndices)
         {
-            var n = nodes[idx];
+            var n = _nodes[idx];
             n.energy += energyPerNode;
-            nodes[idx] = n;
+            _nodes[idx] = n;
         }
     }
 }

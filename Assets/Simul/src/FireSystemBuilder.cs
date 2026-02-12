@@ -27,17 +27,17 @@ public class FireSystemBuilder : MonoBehaviour
 
     public void BuildAndInitialize()
     {
-        FireGraph[] graphs = FindObjectsOfType<FireGraph>();
+        var graphs = FindObjectsByType<FireGraph>(FindObjectsSortMode.None);   
         if (graphs.Length == 0) return;
 
         // 1. Глобальные списки
-        List<SimNode> allNodes = new List<SimNode>();
+        var allNodes = new List<SimNode>();
         // Временное хранилище связей для каждого узла (List<List<SimEdge>>)
         // Мы не можем сразу писать в плоский массив, так как будем добавлять новые связи
-        List<List<SimEdge>> tempEdges = new List<List<SimEdge>>(); 
+        var tempEdges = new List<List<SimEdge>>(); 
         
         // Для поиска соседей (Spatial Grid)
-        Dictionary<int, List<int>> spatialGrid = new Dictionary<int, List<int>>();
+        var spatialGrid = new Dictionary<int, List<int>>();
 
         int globalIndexOffset = 0;
 
