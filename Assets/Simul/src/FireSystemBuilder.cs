@@ -61,6 +61,7 @@ public class FireSystemBuilder : MonoBehaviour
                     fuel = profile.initialFuel,
                     ignitionTemp =  profile.ignitionTemp,
                     calorificValue = profile.calorificValue,
+                    heatCapacity = profile.heatCapacity,
                 };
                 
                 allNodes.Add(simNode);

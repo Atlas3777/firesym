@@ -6,8 +6,9 @@ using UnityEngine;
 public class FireSystem : MonoBehaviour
 {
     public ParticleSystem fireParticleSystem;
-    public float thermalConductivity = 0.67f; // Сколько разницы отдаём
-    public float coolingSpeed = 0.003f; // насколько уменьшаяется t за тик
+
+    //public float thermalConductivity = 0.67f; // Сколько разницы отдаём
+    public float coolingSpeed = 0.01f; // насколько уменьшаяется t за тик  
     public float maxTemperature = 500f; // Температура "белого каления"
     public float nodeScale = 0.1f;
 
@@ -15,7 +16,7 @@ public class FireSystem : MonoBehaviour
     private SimEdge[] _edges;
     private int[] _edgeOffsets;
     private int[] _edgeCounts;
-    
+
     private float[] _energyDelta;
 
     private readonly List<int> _affectedIndices = new(256);
@@ -51,7 +52,7 @@ public class FireSystem : MonoBehaviour
         _edgeOffsets = newOffsets;
         _edgeCounts = newCounts;
 
-        // Инициализируем массив частиц один раз
+        // Инициализируем массив частиц один раз  
         _particles = new ParticleSystem.Particle[_nodes.Length];
 
         for (var i = 0; i < _nodes.Length; i++)
@@ -67,15 +68,6 @@ public class FireSystem : MonoBehaviour
         // Очищаем старые и принудительно выставляем новые
         fireParticleSystem.Clear();
         fireParticleSystem.SetParticles(_particles, _nodes.Length);
-
-
-        // Сразу задаем позиции, так как они в вашей симуляции статичны
-        for (var i = 0; i < _nodes.Length; i++)
-        {
-            _particles[i].position = _nodes[i].position;
-            _particles[i].startSize = nodeScale;
-            _particles[i].startColor = Color.gray;
-        }
 
         _spatialGrid = spatialGrid;
         _cellSize = cellSize;
@@ -105,9 +97,20 @@ public class FireSystem : MonoBehaviour
         var count = _nodes.Length;
         for (var i = 0; i < count; i++)
         {
-            var t = Mathf.Clamp01(_nodes[i].energy / maxTemperature);
-            _particles[i].startColor = GetHeatmapColor(t);
-            _particles[i].startSize = nodeScale * (1f + t * 0.3f);
+            // Проверяем наличие топлива
+            if (_nodes[i].fuel <= 0)
+            {
+                _particles[i].startColor = Color.mediumVioletRed;
+                _particles[i].startSize = nodeScale; // Возвращаем обычный размер для "угля"
+            }
+            else
+            {
+                var t = Mathf.Clamp01(_nodes[i].temperature / maxTemperature);
+                _particles[i].startColor = GetHeatmapColor(t);
+                _particles[i].startSize = nodeScale * (1f + t * 0.3f);
+            }
+        
+            _particles[i].remainingLifetime = 1000f;
         }
 
         fireParticleSystem.SetParticles(_particles, count);
@@ -122,7 +125,6 @@ public class FireSystem : MonoBehaviour
         // 0.6: Желтый
         // 0.8: Оранжевый/Красный
         // 1.0: Белый
-
         if (t < 0.2f) return Color.Lerp(new Color(0.1f, 0f, 0.2f), Color.blue, t / 0.2f);
         if (t < 0.4f) return Color.Lerp(Color.blue, Color.green, (t - 0.2f) / 0.2f);
         if (t < 0.6f) return Color.Lerp(Color.green, Color.yellow, (t - 0.4f) / 0.2f);
@@ -134,54 +136,79 @@ public class FireSystem : MonoBehaviour
     {
         Array.Clear(_energyDelta, 0, _energyDelta.Length);
 
+        // ФАЗА 1: Горение и базовое охлаждение
         for (int i = 0; i < _nodes.Length; i++)
         {
-            float currentEnergy = _nodes[i].energy;
-            if (currentEnergy <= 0) continue;
+            ref var node = ref _nodes[i];
+            float capacity = Mathf.Max(0.1f, node.heatCapacity);
+            node.temperature = node.energy / capacity;
 
-            // 1. Остывание
-            _energyDelta[i] -= currentEnergy * coolingSpeed;
-
-            // 2. Передача соседям
-            var start = _edgeOffsets[i];
-            var count = _edgeCounts[i];
-            
-
-            if (count > 0)
+            if (node.fuel > 0)
             {
-                // Шаг 1: подсчитать холодных соседей
-                int colderCount = 0;
-                for (var j = 0; j < count; j++)
+                if (node.burning)
                 {
-                    if (currentEnergy > _nodes[_edges[start + j].targetIndex].energy)
-                        colderCount++;
+                    node.fuel -= 1;
+                    _energyDelta[i] += node.calorificValue;
+                    if (node.fuel <= 0) node.burning = false;
                 }
-                colderCount = Mathf.Max(1, colderCount); // избежать деления на ноль
+                else if (node.temperature >= node.ignitionTemp)
+                {
+                    node.burning = true;
+                }
+            }
 
-                // Шаг 2: передать с правильной нормализацией
-                for (var j = 0; j < count; j++)
-                {
-                    var neighborIdx = _edges[start + j].targetIndex;
-                    var neighborEnergy = _nodes[neighborIdx].energy;
-    
-                    if (currentEnergy > neighborEnergy)
-                    {
-                        var diff = currentEnergy - neighborEnergy;
-                        var transfer = (diff * thermalConductivity) / colderCount;
-        
-                        _energyDelta[i] -= transfer;
-                        _energyDelta[neighborIdx] += transfer;
-                    }
-                }
+            // Остывание в среду
+            float coolingLoss = node.temperature * coolingSpeed;
+            _energyDelta[i] -= coolingLoss;
+        }
+
+        // ФАЗА 2: Передача энергии (Кондукция)
+        for (int i = 0; i < _nodes.Length; i++)
+        {
+            int start = _edgeOffsets[i];
+            int count = _edgeCounts[i];
+            if (count == 0) continue;
+
+            for (int j = 0; j < count; j++)
+            {
+                var edge = _edges[start + j];
+                int neighborIdx = edge.targetIndex;
+
+                // Обрабатываем каждое ребро только один раз (i < neighborIdx)
+                if (i > neighborIdx) continue;
+
+                float tempA = _nodes[i].temperature;
+                float tempB = _nodes[neighborIdx].temperature;
+
+                if (Mathf.Abs(tempA - tempB) < 0.01f) continue;
+
+                // Считаем эффективную проводимость с учетом количества связей обоих узлов
+                // Это предотвращает взрывную передачу энергии в плотных сетках
+                float avgConnections = (_edgeCounts[i] + _edgeCounts[neighborIdx]) * 0.5f;
+                float flowRate = (edge.materialConductivity / avgConnections);
+
+                float avgCapacity = (_nodes[i].heatCapacity + _nodes[neighborIdx].heatCapacity) * 0.5f;
+
+                // Формула: dE = dT * C * conductivity
+                float energyTransfer = (tempA - tempB) * avgCapacity * flowRate;
+
+                // Ограничитель, чтобы не передать больше, чем выровняет температуры
+                float maxSafeTransfer = Mathf.Abs(tempA - tempB) * 0.5f * avgCapacity;
+                energyTransfer = Mathf.Clamp(energyTransfer, -maxSafeTransfer, maxSafeTransfer);
+
+                _energyDelta[i] -= energyTransfer;
+                _energyDelta[neighborIdx] += energyTransfer;
             }
         }
 
-        // Применяем изменения
-        for (var i = 0; i < _nodes.Length; i++)
+        // ФАЗА 3: Применение
+        for (int i = 0; i < _nodes.Length; i++)
         {
-            var n = _nodes[i];
-            n.energy += _energyDelta[i];
-            _nodes[i] = n;
+            _nodes[i].energy += _energyDelta[i];
+            if (_nodes[i].energy < 0) _nodes[i].energy = 0;
+
+            // Обновляем температуру для следующего кадра/отрисовки
+            _nodes[i].temperature = _nodes[i].energy / Mathf.Max(0.1f, _nodes[i].heatCapacity);
         }
     }
 
@@ -191,7 +218,7 @@ public class FireSystem : MonoBehaviour
 
         var rSqr = radius * radius;
 
-        // Определяем диапазон ячеек, которые покрывает радиус
+        // Определяем диапазон ячеек, которые покрывает радиус  
         var minCell = SpatialHash.WorldToCell(worldPoint - new Vector3(radius, radius, radius), _cellSize);
         var maxCell = SpatialHash.WorldToCell(worldPoint + new Vector3(radius, radius, radius), _cellSize);
 

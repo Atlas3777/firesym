@@ -35,16 +35,16 @@ public class MaterialLibrary
             type = FireMaterial.Wood,
             ignitionTemp = 250,     // Средняя температура воспламенения
             initialFuel = 500,      // Горит долго
-            calorificValue = 10,    // Хорошо греет соседей
+            calorificValue = 40,    // Хорошо греет соседей
             heatTransfer = 0.3f,    // Плохой проводник (горит локально)
-            heatCapacity = 15     // Средне держит тепло
+            heatCapacity = 5     // Средне держит тепло
         };
 
         // БУМАГА: Вспыхивает мгновенно, быстро кончается.
         _profiles[FireMaterial.Paper] = new MaterialProfile
         {
             type = FireMaterial.Paper,
-            ignitionTemp = 180, 
+            ignitionTemp = 180,
             initialFuel = 50,       // Сгорает очень быстро
             calorificValue = 15,    // Яркое, но короткое пламя
             heatTransfer = 0.2f,    

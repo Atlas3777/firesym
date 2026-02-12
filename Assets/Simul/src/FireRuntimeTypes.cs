@@ -41,6 +41,8 @@ public struct SimNode
     public float fuel;       // Запас топлива
     public bool burning;     //Горит/негорит
     public int calorificValue;    // Сколько энегрии выделяет при сгорании
+    public float temperature;
+    public int heatCapacity;    // Теплоемкость
 }
 
 [Serializable]
