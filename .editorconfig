@@ -1,0 +1,5 @@
+root = true
+
+[*.cs]
+# Отключаем предупреждение о неиспользуемых закрытых членах (Update, Start и т.д.)
+dotnet_diagnostic.IDE0051.severity = none
